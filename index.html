@@ -1,0 +1,1051 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>無人島サバイバルバトルロイヤル</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap" rel="stylesheet">
+    <style>
+        body {
+            background-color: #1a202c;
+            color: #48bb78;
+            font-family: 'DotGothic16', monospace;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            flex-direction: column;
+            padding: 1rem;
+            overflow: hidden;
+            text-align: center;
+        }
+        .game-container {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            max-width: 1000px;
+        }
+        canvas {
+            background-color: #2f855a;
+            border: 4px solid #48bb78;
+            border-radius: 12px;
+            box-shadow: 0 0 20px #48bb78;
+            touch-action: none;
+            width: 100%;
+            height: auto;
+            max-height: 50vh;
+            image-rendering: pixelated;
+        }
+        .ui-panel {
+            background-color: #2d3748;
+            border: 2px solid #48bb78;
+            border-radius: 12px;
+            padding: 1rem;
+            margin-top: 1rem;
+            width: 100%;
+        }
+        .status-bar {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-around;
+            text-align: center;
+            margin-bottom: 1rem;
+            gap: 0.5rem;
+        }
+        .status-item {
+            padding: 0.5rem 1rem;
+            border: 1px solid #48bb78;
+            border-radius: 8px;
+            flex-grow: 1;
+        }
+        .log-container {
+            height: 100px;
+            overflow-y: auto;
+            border: 1px solid #48bb78;
+            padding: 0.5rem;
+            border-radius: 8px;
+            background-color: #1a202c;
+            margin-bottom: 0.5rem;
+            text-align: left;
+        }
+        .log-message {
+            margin-bottom: 0.25rem;
+            line-height: 1.2;
+        }
+        .action-buttons, .craft-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+        .action-buttons button, .craft-buttons button {
+            background-color: #63b3ed;
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: 'DotGothic16', monospace;
+        }
+        .action-buttons button:hover, .craft-buttons button:hover {
+            box-shadow: 0 0 10px #63b3ed;
+            transform: translateY(-2px);
+        }
+        .craft-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.25rem;
+            padding: 0.5rem;
+            border: 1px solid #48bb78;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        #game-over-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.9);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+            color: white;
+            text-align: center;
+        }
+        #start-screen {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background-color: #1a202c;
+            width: 100%;
+            height: 100vh;
+            position: absolute;
+        }
+        #countdown {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #ef4444;
+            margin-bottom: 1rem;
+        }
+        .day-night-filter {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0);
+            z-index: 10;
+            pointer-events: none;
+            transition: background-color 2s ease-in-out;
+        }
+    </style>
+</head>
+<body>
+    <div id="start-screen" class="bg-gray-900 w-full h-screen fixed top-0 left-0 flex flex-col justify-center items-center">
+        <h2 class="text-3xl mb-4 text-white">プレイヤー名を入力してください</h2>
+        <input type="text" id="player-name-input" class="p-2 rounded-lg bg-gray-700 text-white text-center mb-4" placeholder="名前" maxlength="8">
+        <button id="startButton" class="bg-green-500 text-white px-8 py-4 rounded-lg font-bold">ゲームスタート</button>
+    </div>
+    
+    <div class="game-container" id="game-container">
+        <h1 class="text-3xl font-bold mb-2 text-center text-red-500">無人島サバイバル</h1>
+        <p class="text-white text-sm mb-2 text-center">プレイヤー名: <span id="player-name-display" class="font-bold"></span></p>
+        <p id="countdown"></p>
+        <div class="relative w-full aspect-square">
+            <canvas id="gameCanvas"></canvas>
+            <div class="day-night-filter" id="dayNightFilter"></div>
+        </div>
+        <div class="ui-panel">
+            <div class="status-bar">
+                <div class="status-item">HP: <span id="hp-value"></span></div>
+                <div class="status-item">スタミナ: <span id="stamina-value"></span></div>
+                <div class="status-item">満腹度: <span id="fullness-value"></span></div>
+                <div class="status-item">水分: <span id="hydration-value"></span></div>
+                <div class="status-item">体温: <span id="temperature-value"></span></div>
+                <div class="status-item">資材: <span id="materials-value"></span></div>
+                <div class="status-item">アイテム: <span id="item-value"></span></div>
+            </div>
+            <div class="action-buttons">
+                <button id="mineButton">資材採掘</button>
+                <button id="huntButton">狩猟</button>
+                <button id="drinkButton">水を飲む</button>
+                <button id="craftMenuButton">クラフト</button>
+                <button id="attackButton">攻撃</button>
+            </div>
+            <div id="craft-menu" class="hidden">
+                <h3 class="text-xl mt-4 mb-2">クラフト</h3>
+                <div class="craft-buttons">
+                    <button class="craft-item" data-item="stone_axe">
+                        斧 (資材x5)<br>
+                        <span class="text-xs">採掘効率UP</span>
+                    </button>
+                    <button class="craft-item" data-item="spear">
+                        槍 (資材x10)<br>
+                        <span class="text-xs">攻撃力UP</span>
+                    </button>
+                    <button class="craft-item" data-item="medicine">
+                        薬 (資材x3)<br>
+                        <span class="text-xs">HP回復</span>
+                    </button>
+                </div>
+                <button id="closeCraftMenuButton" class="mt-4 px-4 py-2 bg-gray-600 rounded">閉じる</button>
+            </div>
+        </div>
+        <div class="ui-panel mt-4">
+            <h2 class="text-xl font-bold mb-2">イベントログ</h2>
+            <div id="event-log" class="log-container"></div>
+        </div>
+    </div>
+    
+    <div id="game-over-screen">
+        <h2 id="game-over-text" class="text-5xl mb-4"></h2>
+        <p id="game-over-subtitle" class="text-xl mb-8"></p>
+        <button onclick="location.reload()" class="bg-blue-500 text-white px-8 py-4 rounded-lg">もう一度プレイ</button>
+    </div>
+
+    <script type="module">
+        import { initializeApp, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, query, addDoc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Firebaseの設定と初期化
+        // 環境変数がない場合、ローカルでのテスト用にデフォルト値を設定
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        let db, auth;
+        
+        async function initFirebase() {
+            try {
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                setLogLevel('Debug');
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (e) {
+                console.error("Firebaseの初期化に失敗しました。ローカル環境ではデータ保存機能が使えない場合があります。", e);
+            }
+        }
+
+        // ゲームの状態変数
+        const gameContainer = document.getElementById('game-container');
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const tileSize = 50;
+        let mapSize = 20;
+        let map = [];
+        let playerState = {
+            id: null,
+            name: "名無し",
+            x: 0,
+            y: 0,
+            hp: 100,
+            maxHp: 100,
+            stamina: 100,
+            maxStamina: 100,
+            fullness: 100,
+            hydration: 100,
+            temperature: 30,
+            materials: 0,
+            items: [],
+            tool: null,
+            weapon: null,
+            isAlive: true,
+            isAI: false,
+            color: `hsl(${Math.random() * 360}, 70%, 50%)`,
+        };
+        let allPlayers = {};
+        let allAnimals = {};
+        let gameActive = false;
+        let gameStartTime = 0;
+        const gameDuration = 5 * 60 * 1000;
+        let safeZoneRadius = mapSize;
+        const aiPlayerCount = 4;
+        const animalCount = 5;
+        const weather = {
+            isRaining: false,
+            temperature: 30
+        };
+
+        // UI要素
+        const startScreen = document.getElementById('start-screen');
+        const playerNameInput = document.getElementById('player-name-input');
+        const startButton = document.getElementById('startButton');
+        const hpValue = document.getElementById('hp-value');
+        const staminaValue = document.getElementById('stamina-value');
+        const fullnessValue = document.getElementById('fullness-value');
+        const hydrationValue = document.getElementById('hydration-value');
+        const temperatureValue = document.getElementById('temperature-value');
+        const materialsValue = document.getElementById('materials-value');
+        const itemValue = document.getElementById('item-value');
+        const playerNameDisplay = document.getElementById('player-name-display');
+        const eventLogDiv = document.getElementById('event-log');
+        const attackButton = document.getElementById('attackButton');
+        const mineButton = document.getElementById('mineButton');
+        const huntButton = document.getElementById('huntButton');
+        const drinkButton = document.getElementById('drinkButton');
+        const craftMenuButton = document.getElementById('craftMenuButton');
+        const craftMenu = document.getElementById('craft-menu');
+        const closeCraftMenuButton = document.getElementById('closeCraftMenuButton');
+        const gameOverScreen = document.getElementById('game-over-screen');
+        const gameOverText = document.getElementById('game-over-text');
+        const gameOverSubtitle = document.getElementById('game-over-subtitle');
+        const countdownElement = document.getElementById('countdown');
+        const dayNightFilter = document.getElementById('dayNightFilter');
+        
+        // 移動キーの状態を管理するオブジェクト
+        let keys = {};
+        let lastMoveTime = 0;
+        const moveInterval = 150; // プレイヤーの移動間隔（ミリ秒）
+
+        // --- ゲーム初期設定 ---
+        function resizeCanvas() {
+            canvas.width = 5 * tileSize;
+            canvas.height = 5 * tileSize;
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        function generateMap() {
+            map = Array.from({ length: mapSize }, () => Array(mapSize).fill(0));
+            for (let i = 0; i < mapSize * mapSize * 0.2; i++) {
+                map[Math.floor(Math.random() * mapSize)][Math.floor(Math.random() * mapSize)] = 1;
+            }
+            for (let i = 0; i < mapSize * mapSize * 0.1; i++) {
+                map[Math.floor(Math.random() * mapSize)][Math.floor(Math.random() * mapSize)] = 2;
+            }
+            for (let i = 0; i < mapSize; i++) {
+                map[Math.floor(Math.random() * mapSize)][i] = 3;
+            }
+        }
+        
+        async function startGame() {
+            await initFirebase();
+            if (!auth || !auth.currentUser) {
+                console.error("Firebase Authが初期化されていません。ゲームを開始できません。");
+                return;
+            }
+
+            playerState.name = playerNameInput.value || "名無し";
+            playerNameDisplay.innerText = playerState.name;
+            startScreen.style.display = 'none';
+            gameContainer.style.display = 'flex';
+
+            playerState.id = auth.currentUser.uid;
+            
+            const gameRef = doc(db, `/artifacts/${appId}/public/data/game_state/current`);
+            const gameSnap = await getDoc(gameRef);
+
+            if (!gameSnap.exists() || !gameSnap.data().active) {
+                generateMap();
+                gameActive = true;
+                gameStartTime = Date.now();
+                safeZoneRadius = mapSize;
+                await setDoc(gameRef, { active: true, startTime: gameStartTime, map: JSON.stringify(map), safeZoneRadius: safeZoneRadius });
+                
+                // AIプレイヤーを初期化
+                for (let i = 0; i < aiPlayerCount; i++) {
+                    const aiId = `AI-${i}`;
+                    await setDoc(doc(db, `/artifacts/${appId}/public/data/players/${aiId}`), {
+                        id: aiId,
+                        name: `AI-${i+1}`,
+                        x: Math.floor(Math.random() * mapSize),
+                        y: Math.floor(Math.random() * mapSize),
+                        hp: 100,
+                        maxHp: 100,
+                        stamina: 100,
+                        maxStamina: 100,
+                        fullness: 100,
+                        hydration: 100,
+                        temperature: 30,
+                        materials: 0,
+                        items: [],
+                        isAlive: true,
+                        isAI: true,
+                        color: `hsl(${Math.random() * 360}, 70%, 50%)`,
+                        tool: null,
+                        weapon: null
+                    });
+                }
+
+                // 動物を初期化
+                const animalsRef = collection(db, `/artifacts/${appId}/public/data/animals`);
+                for (let i = 0; i < animalCount; i++) {
+                    await addDoc(animalsRef, {
+                        x: Math.floor(Math.random() * mapSize),
+                        y: Math.floor(Math.random() * mapSize),
+                        type: 'boar',
+                        hp: 20,
+                        isAlive: true,
+                    });
+                }
+            } else {
+                gameActive = true;
+                const gameData = gameSnap.data();
+                gameStartTime = gameData.startTime;
+                map = JSON.parse(gameData.map);
+                safeZoneRadius = gameData.safeZoneRadius;
+            }
+            
+            playerState.x = Math.floor(Math.random() * mapSize);
+            playerState.y = Math.floor(Math.random() * mapSize);
+            await savePlayerState();
+
+            listenForGameChanges();
+            listenForPlayers();
+            listenForAnimals();
+            listenForEvents();
+            
+            setInterval(updatePlayerState, 1000);
+            setInterval(aiTurn, 2000);
+            setInterval(updateWeather, 30000);
+            setInterval(animalTurn, 3000);
+            
+            gameLoop();
+        }
+
+        // --- Firebase 操作 ---
+        async function savePlayerState() {
+            if (!db || !playerState.id) return;
+            try {
+                const playerDocRef = doc(db, `/artifacts/${appId}/public/data/players/${playerState.id}`);
+                await setDoc(playerDocRef, playerState);
+            } catch (e) {
+                console.error("プレイヤー状態の保存エラー:", e);
+            }
+        }
+        
+        function listenForGameChanges() {
+            if (!db) return;
+            const gameRef = doc(db, `/artifacts/${appId}/public/data/game_state/current`);
+            onSnapshot(gameRef, (doc) => {
+                if (doc.exists()) {
+                    const data = doc.data();
+                    safeZoneRadius = data.safeZoneRadius;
+                    if (!data.active) {
+                        gameActive = false;
+                    }
+                }
+            });
+        }
+        
+        function listenForPlayers() {
+            if (!db) return;
+            const playersCol = collection(db, `/artifacts/${appId}/public/data/players`);
+            onSnapshot(playersCol, (snapshot) => {
+                allPlayers = {};
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    allPlayers[doc.id] = data;
+                    if (data.id === playerState.id) {
+                        playerState = data; // ローカルの状態を同期
+                    }
+                });
+                
+                const alivePlayers = Object.values(allPlayers).filter(p => p.isAlive);
+                const humanPlayers = alivePlayers.filter(p => !p.isAI);
+                
+                if (gameActive) {
+                    if (alivePlayers.length === 1) {
+                         endGame(true, `最後の生存者は ${alivePlayers[0].name} です。`, '勝利！');
+                    } else if (humanPlayers.length === 0) {
+                        endGame(false, '人間プレイヤーは全滅しました。', '敗北…');
+                    }
+                }
+            });
+        }
+
+        function listenForAnimals() {
+            if (!db) return;
+            const animalsCol = collection(db, `/artifacts/${appId}/public/data/animals`);
+            onSnapshot(animalsCol, (snapshot) => {
+                allAnimals = {};
+                snapshot.forEach(doc => {
+                    allAnimals[doc.id] = doc.data();
+                });
+            });
+        }
+        
+        async function sendEventMessage(message) {
+            if (!db) return;
+            try {
+                await addDoc(collection(db, `/artifacts/${appId}/public/data/event_log`), {
+                    message: message,
+                    timestamp: Date.now()
+                });
+            } catch (e) {
+                console.error("イベントメッセージの送信エラー:", e);
+            }
+        }
+        
+        function listenForEvents() {
+            if (!db) return;
+            const eventCol = collection(db, `/artifacts/${appId}/public/data/event_log`);
+            onSnapshot(eventCol, (snapshot) => {
+                const eventMessages = [];
+                snapshot.forEach(doc => {
+                    eventMessages.push(doc.data());
+                });
+                eventMessages.sort((a, b) => a.timestamp - b.timestamp);
+                renderEventLog(eventMessages);
+            });
+        }
+        
+        // --- ゲームロジック ---
+        function updatePlayerState() {
+            if (!gameActive || !playerState.isAlive) return;
+            
+            playerState.fullness = Math.max(0, playerState.fullness - 0.5);
+            playerState.hydration = Math.max(0, playerState.hydration - 1);
+            
+            if (weather.isRaining) {
+                playerState.temperature = Math.max(0, playerState.temperature - 1);
+            } else {
+                playerState.temperature = Math.min(30, playerState.temperature + 0.5);
+            }
+            
+            if (playerState.fullness <= 20) {
+                playerState.hp = Math.max(0, playerState.hp - 1);
+                logMessage("空腹でHPが減っていく...");
+            }
+            if (playerState.hydration <= 20) {
+                playerState.hp = Math.max(0, playerState.hp - 2);
+                logMessage("喉が渇き、体力が奪われる...");
+            }
+            if (playerState.temperature <= 5) {
+                playerState.hp = Math.max(0, playerState.hp - 3);
+                logMessage("寒さで震えが止まらない...");
+            }
+
+            const dist = getDistanceToCenter(playerState.x, playerState.y);
+            if (dist > safeZoneRadius) {
+                playerState.hp = Math.max(0, playerState.hp - 5);
+                logMessage("安全地帯の外にいるためダメージを受けている！");
+            }
+
+            if (playerState.hp <= 0) {
+                playerState.isAlive = false;
+                endGame(false, `${playerState.name}は力尽きました。`, '敗北…');
+            }
+
+            savePlayerState();
+            checkGameConditions();
+        }
+
+        function getDistanceToCenter(x, y) {
+            const centerX = mapSize / 2;
+            const centerY = mapSize / 2;
+            return Math.sqrt(Math.pow(x - centerX, 2) + Math.pow(y - centerY, 2));
+        }
+        
+        function checkGameConditions() {
+            if (!gameActive) return;
+            const elapsed = Date.now() - gameStartTime;
+            if (elapsed > 60000 && elapsed % 30000 === 0) {
+                safeZoneRadius = Math.max(5, safeZoneRadius - 1);
+                const gameRef = doc(db, `/artifacts/${appId}/public/data/game_state/current`);
+                updateDoc(gameRef, { safeZoneRadius: safeZoneRadius });
+                sendEventMessage("安全地帯が縮小している！");
+            }
+        }
+        
+        function updateWeather() {
+            weather.isRaining = Math.random() < 0.3;
+            weather.temperature = 30 + (Math.random() - 0.5) * 10;
+            if (weather.isRaining) {
+                logMessage("空が暗くなり、雨が降り出した。体温が下がる...");
+            } else {
+                logMessage("空が晴れ渡っている。");
+            }
+        }
+        
+        function findNearestOpponent(player) {
+            let nearestOpponent = null;
+            let minDistance = Infinity;
+            for (const id in allPlayers) {
+                const opponent = allPlayers[id];
+                if (id !== player.id && opponent.isAlive) {
+                    const dist = Math.sqrt(Math.pow(opponent.x - player.x, 2) + Math.pow(opponent.y - player.y, 2));
+                    if (dist < minDistance) {
+                        minDistance = dist;
+                        nearestOpponent = opponent;
+                    }
+                }
+            }
+            return nearestOpponent;
+        }
+
+        async function aiTurn() {
+            if (!gameActive) return;
+            const aiPlayers = Object.values(allPlayers).filter(p => p.isAI && p.isAlive);
+            for (const ai of aiPlayers) {
+                if (!ai.isAlive) continue;
+                
+                const opponent = findNearestOpponent(ai);
+                const distToCenter = getDistanceToCenter(ai.x, ai.y);
+
+                if (ai.hp < 50 && opponent && Math.sqrt(Math.pow(opponent.x - ai.x, 2) + Math.pow(opponent.y - ai.y, 2)) < 5) {
+                    const dx = ai.x - opponent.x;
+                    const dy = ai.y - opponent.y;
+                    moveAI(ai, Math.sign(dx), Math.sign(dy));
+                } else if (distToCenter > safeZoneRadius) {
+                    const dx = (mapSize / 2) - ai.x;
+                    const dy = (mapSize / 2) - ai.y;
+                    moveAI(ai, Math.sign(dx), Math.sign(dy));
+                } else if (ai.fullness < 50 || ai.hydration < 50) {
+                    if (ai.fullness < 50) {
+                        huntAI(ai);
+                    } else if (ai.hydration < 50) {
+                        const riverTiles = [];
+                        for(let y=0; y<mapSize; y++){
+                            for(let x=0; x<mapSize; x++){
+                                if(map[y][x] === 3) riverTiles.push({x, y});
+                            }
+                        }
+                        if(riverTiles.length > 0) {
+                            const nearestRiver = riverTiles.sort((a,b) => getDistanceToCenter(ai.x, ai.y) - getDistanceToCenter(a.x, a.y))[0];
+                            const dx = nearestRiver.x - ai.x;
+                            const dy = nearestRiver.y - ai.y;
+                            moveAI(ai, Math.sign(dx), Math.sign(dy));
+                        }
+                    }
+                } else if (opponent && Math.sqrt(Math.pow(opponent.x - ai.x, 2) + Math.pow(opponent.y - ai.y, 2)) < 3) {
+                    attackAI(ai, opponent);
+                } else {
+                    const action = Math.random();
+                    if (action < 0.4) {
+                        const dx = Math.floor(Math.random() * 3) - 1;
+                        const dy = Math.floor(Math.random() * 3) - 1;
+                        moveAI(ai, dx, dy);
+                    } else if (action < 0.8) {
+                        mineAI(ai);
+                    } else {
+                        huntAI(ai);
+                    }
+                }
+            }
+        }
+        
+        async function moveAI(ai, dx, dy) {
+            if (!db) return;
+            try {
+                const newX = ai.x + dx;
+                const newY = ai.y + dy;
+                if (newX >= 0 && newX < mapSize && newY >= 0 && newY < mapSize && map[newY][newX] !== 3) {
+                    const aiDocRef = doc(db, `/artifacts/${appId}/public/data/players/${ai.id}`);
+                    await updateDoc(aiDocRef, { x: newX, y: newY, stamina: Math.max(0, ai.stamina - 1) });
+                }
+            } catch (e) {
+                console.error("AI移動エラー:", e);
+            }
+        }
+
+        async function mineAI(ai) {
+            if (!db) return;
+            try {
+                const aiDocRef = doc(db, `/artifacts/${appId}/public/data/players/${ai.id}`);
+                await updateDoc(aiDocRef, { materials: ai.materials + 5, stamina: Math.max(0, ai.stamina - 5) });
+            } catch (e) {
+                console.error("AI採掘エラー:", e);
+            }
+        }
+
+        async function huntAI(ai) {
+            if (!db) return;
+            try {
+                const aiDocRef = doc(db, `/artifacts/${appId}/public/data/players/${ai.id}`);
+                await updateDoc(aiDocRef, { fullness: Math.min(100, ai.fullness + 30), stamina: Math.max(0, ai.stamina - 10) });
+            } catch (e) {
+                console.error("AI狩猟エラー:", e);
+            }
+        }
+        
+        async function attackAI(ai, opponent) {
+            if (!db) return;
+            try {
+                const opponentDocRef = doc(db, `/artifacts/${appId}/public/data/players/${opponent.id}`);
+                const damage = 10;
+                const newHp = Math.max(0, opponent.hp - damage);
+                
+                await updateDoc(opponentDocRef, { hp: newHp });
+                sendEventMessage(`${ai.name}が${opponent.name}に${damage}のダメージを与えた！`);
+                if (newHp <= 0) {
+                    await updateDoc(opponentDocRef, { isAlive: false });
+                    sendEventMessage(`${ai.name}が${opponent.name}を倒した！`);
+                }
+            } catch (e) {
+                console.error("AI攻撃エラー:", e);
+            }
+        }
+        
+        async function animalTurn() {
+            if (!gameActive) return;
+            for (const animalId in allAnimals) {
+                const animal = allAnimals[animalId];
+                if (!animal.isAlive) continue;
+                
+                // 動物の移動ロジック
+                const dx = Math.floor(Math.random() * 3) - 1;
+                const dy = Math.floor(Math.random() * 3) - 1;
+                const newX = animal.x + dx;
+                const newY = animal.y + dy;
+
+                if (newX >= 0 && newX < mapSize && newY >= 0 && newY < mapSize && map[newY][newX] !== 3) {
+                    const animalDocRef = doc(db, `/artifacts/${appId}/public/data/animals/${animalId}`);
+                    await updateDoc(animalDocRef, { x: newX, y: newY });
+                }
+            }
+        }
+
+        async function endGame(isWinner, endMessage, endTitle) {
+            if (!gameActive) return;
+            gameActive = false;
+            
+            if (isWinner && playerState.isAlive) {
+                const gameRef = doc(db, `/artifacts/${appId}/public/data/game_state/current`);
+                await updateDoc(gameRef, { active: false });
+            } else if (!isWinner && playerState.isAlive) {
+                await updateDoc(doc(db, `/artifacts/${appId}/public/data/players/${playerState.id}`), { isAlive: false });
+            }
+            
+            gameOverScreen.style.display = 'flex';
+            gameOverText.innerText = endTitle;
+            gameOverSubtitle.innerText = endMessage;
+        }
+
+        // --- 描画関数 ---
+        function drawMap() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw a black background to hide the rest of the map
+            ctx.fillStyle = '#1a202c';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            const viewRadius = 2; // プレイヤーの周囲2マス
+            const startX = Math.max(0, playerState.x - viewRadius);
+            const startY = Math.max(0, playerState.y - viewRadius);
+            const endX = Math.min(mapSize - 1, playerState.x + viewRadius);
+            const endY = Math.min(mapSize - 1, playerState.y + viewRadius);
+            
+            for (let y = startY; y <= endY; y++) {
+                for (let x = startX; x <= endX; x++) {
+                    let color;
+                    switch(map[y][x]) {
+                        case 0: color = '#38a169'; break; // Grass
+                        case 1: color = '#2f855a'; break; // Forest
+                        case 2: color = '#a0aec0'; break; // Rocks
+                        case 3: color = '#63b3ed'; break; // Water
+                        default: color = '#38a169';
+                    }
+                    const drawX = (x - startX) * tileSize;
+                    const drawY = (y - startY) * tileSize;
+                    ctx.fillStyle = color;
+                    ctx.fillRect(drawX, drawY, tileSize, tileSize);
+                }
+            }
+            
+            // Draw animals in view
+            for (const id in allAnimals) {
+                const animal = allAnimals[id];
+                if (animal.isAlive) {
+                    const dist = Math.sqrt(Math.pow(animal.x - playerState.x, 2) + Math.pow(animal.y - playerState.y, 2));
+                    if (dist <= viewRadius + 0.5) {
+                        const animalDrawX = (animal.x - startX) * tileSize + tileSize / 2;
+                        const animalDrawY = (animal.y - startY) * tileSize + tileSize / 2;
+                        
+                        ctx.fillStyle = '#9B2C2C'; // Brown for boar
+                        ctx.beginPath();
+                        ctx.arc(animalDrawX, animalDrawY, tileSize / 5, 0, Math.PI * 2);
+                        ctx.fill();
+
+                        ctx.fillStyle = 'white';
+                        ctx.font = '10px DotGothic16';
+                        ctx.textAlign = 'center';
+                        ctx.fillText('イノシシ', animalDrawX, animalDrawY - 10);
+                    }
+                }
+            }
+
+            // Draw other players in view
+            for (const id in allPlayers) {
+                const otherPlayer = allPlayers[id];
+                if (id !== playerState.id && otherPlayer.isAlive) {
+                    const dist = Math.sqrt(Math.pow(otherPlayer.x - playerState.x, 2) + Math.pow(otherPlayer.y - playerState.y, 2));
+                    if (dist <= viewRadius + 0.5) {
+                        const otherPlayerDrawX = (otherPlayer.x - startX) * tileSize + tileSize / 2;
+                        const otherPlayerDrawY = (otherPlayer.y - startY) * tileSize + tileSize / 2;
+                        
+                        ctx.fillStyle = otherPlayer.color;
+                        ctx.beginPath();
+                        ctx.arc(otherPlayerDrawX, otherPlayerDrawY, tileSize / 4, 0, Math.PI * 2);
+                        ctx.fill();
+
+                        ctx.fillStyle = 'white';
+                        ctx.font = '10px DotGothic16';
+                        ctx.textAlign = 'center';
+                        ctx.fillText(otherPlayer.name, otherPlayerDrawX, otherPlayerDrawY - 10);
+                    }
+                }
+            }
+
+            // Draw player dot
+            const playerDrawX = (playerState.x - startX) * tileSize + tileSize / 2;
+            const playerDrawY = (playerState.y - startY) * tileSize + tileSize / 2;
+            ctx.fillStyle = playerState.color;
+            ctx.beginPath();
+            ctx.arc(playerDrawX, playerDrawY, tileSize / 4, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Draw safe zone boundary
+            const centerX = mapSize / 2;
+            const centerY = mapSize / 2;
+            const playerToCenterDist = Math.sqrt(Math.pow(playerState.x - centerX, 2) + Math.pow(playerState.y - centerY, 2));
+            const safeZoneDist = safeZoneRadius;
+
+            if (playerToCenterDist < safeZoneDist + viewRadius) {
+                const relativeCenterX = (centerX - startX) * tileSize;
+                const relativeCenterY = (centerY - startY) * tileSize;
+
+                ctx.beginPath();
+                ctx.arc(relativeCenterX, relativeCenterY, safeZoneRadius * tileSize, 0, Math.PI * 2);
+                ctx.strokeStyle = '#ef4444';
+                ctx.lineWidth = 5;
+                ctx.stroke();
+            }
+        }
+        
+        function renderUI() {
+            if (!playerState || !playerState.isAlive) return;
+            hpValue.innerText = playerState.hp;
+            staminaValue.innerText = Math.floor(playerState.stamina);
+            fullnessValue.innerText = Math.floor(playerState.fullness);
+            hydrationValue.innerText = Math.floor(playerState.hydration);
+            temperatureValue.innerText = Math.floor(playerState.temperature);
+            materialsValue.innerText = playerState.materials;
+            itemValue.innerText = playerState.items.join(', ') || 'なし';
+            
+            const remainingTime = Math.max(0, gameDuration - (Date.now() - gameStartTime));
+            const minutes = Math.floor(remainingTime / 60000);
+            const seconds = Math.floor((remainingTime % 60000) / 1000);
+            countdownElement.innerText = `残り時間: ${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            
+            if (remainingTime <= 0) {
+                 endGame(false, '時間切れです。', '敗北…');
+            }
+            const cycleProgress = (Date.now() - gameStartTime) % 60000;
+            const darkness = Math.abs(Math.sin((cycleProgress / 60000) * Math.PI * 2));
+            dayNightFilter.style.backgroundColor = `rgba(0, 0, 0, ${darkness * 0.7})`;
+        }
+
+        function renderEventLog(eventMessages) {
+            eventLogDiv.innerHTML = eventMessages.map(msg => {
+                const date = new Date(msg.timestamp);
+                const time = date.toTimeString().substring(0, 5);
+                return `<div class="log-message text-gray-400 text-xs">[${time}] ${msg.message}</div>`;
+            }).join('');
+            eventLogDiv.scrollTop = eventLogDiv.scrollHeight;
+        }
+        
+        function logMessage(msg) {
+            const date = new Date();
+            const time = date.toTimeString().substring(0, 5);
+            const messageDiv = document.createElement('div');
+            messageDiv.classList.add('log-message', 'text-gray-400', 'text-xs');
+            messageDiv.innerText = `[${time}] ${msg}`;
+            eventLogDiv.appendChild(messageDiv);
+            eventLogDiv.scrollTop = eventLogDiv.scrollHeight;
+        }
+
+        function gameLoop() {
+            if (!gameActive) {
+                return;
+            }
+            handleMovement();
+            drawMap();
+            renderUI();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // --- イベントリスナー ---
+        startButton.addEventListener('click', () => {
+            startGame();
+        });
+        
+        // キーの状態を更新
+        document.addEventListener('keydown', (e) => {
+            keys[e.key] = true;
+        });
+
+        document.addEventListener('keyup', (e) => {
+            keys[e.key] = false;
+        });
+        
+        async function handleMovement() {
+            const now = Date.now();
+            if (now - lastMoveTime < moveInterval) {
+                return;
+            }
+
+            if (!gameActive || !playerState.isAlive) return;
+            let dx = 0, dy = 0;
+            if (keys['w'] || keys['W'] || keys['ArrowUp']) dy = -1;
+            if (keys['s'] || keys['S'] || keys['ArrowDown']) dy = 1;
+            if (keys['a'] || keys['A'] || keys['ArrowLeft']) dx = -1;
+            if (keys['d'] || keys['D'] || keys['ArrowRight']) dx = 1;
+
+            if (dx !== 0 || dy !== 0) {
+                lastMoveTime = now;
+                const newX = playerState.x + dx;
+                const newY = playerState.y + dy;
+                
+                if (newX >= 0 && newX < mapSize && newY >= 0 && newY < mapSize) {
+                    const terrain = map[newY][newX];
+                    if (terrain !== 3) {
+                        const playerDocRef = doc(db, `/artifacts/${appId}/public/data/players/${playerState.id}`);
+                        await updateDoc(playerDocRef, { x: newX, y: newY, stamina: Math.max(0, playerState.stamina - 1) });
+                    } else {
+                        logMessage("川は渡れない...");
+                    }
+                }
+            }
+        }
+
+        mineButton.addEventListener('click', async () => {
+            if (!gameActive || !playerState.isAlive || playerState.stamina < 5) {
+                logMessage("スタミナが足りない...");
+                return;
+            }
+            const playerDocRef = doc(db, `/artifacts/${appId}/public/data/players/${playerState.id}`);
+            const materialsGained = 5 + (playerState.tool === 'stone_axe' ? 5 : 0);
+            await updateDoc(playerDocRef, {
+                stamina: Math.max(0, playerState.stamina - 5),
+                materials: playerState.materials + materialsGained
+            });
+            sendEventMessage(`${playerState.name}は資材を採掘した！(${materialsGained})`);
+        });
+
+        huntButton.addEventListener('click', async () => {
+            if (!gameActive || !playerState.isAlive || playerState.stamina < 10) {
+                logMessage("スタミナが足りない...");
+                return;
+            }
+
+            let huntedAnimal = null;
+            for (const id in allAnimals) {
+                const animal = allAnimals[id];
+                if (animal.isAlive && animal.x === playerState.x && animal.y === playerState.y) {
+                    huntedAnimal = { id, ...animal };
+                    break;
+                }
+            }
+
+            if (huntedAnimal) {
+                const animalDocRef = doc(db, `/artifacts/${appId}/public/data/animals/${huntedAnimal.id}`);
+                const damage = 20;
+                const newHp = Math.max(0, huntedAnimal.hp - damage);
+                await updateDoc(animalDocRef, { hp: newHp });
+
+                if (newHp <= 0) {
+                    await updateDoc(animalDocRef, { isAlive: false });
+                    const playerDocRef = doc(db, `/artifacts/${appId}/public/data/players/${playerState.id}`);
+                    await updateDoc(playerDocRef, {
+                        stamina: Math.max(0, playerState.stamina - 10),
+                        fullness: Math.min(100, playerState.fullness + 30)
+                    });
+                    sendEventMessage(`${playerState.name}はイノシシを倒して食料をゲット！`);
+                } else {
+                    sendEventMessage(`${playerState.name}がイノシシを攻撃！`);
+                }
+            } else {
+                logMessage("近くに狩る動物がいない...");
+            }
+        });
+
+        drinkButton.addEventListener('click', async () => {
+            if (!gameActive || !playerState.isAlive || map[playerState.y][playerState.x] !== 3 || playerState.stamina < 2) {
+                logMessage("水辺にいないか、スタミナが足りない...");
+                return;
+            }
+            const playerDocRef = doc(db, `/artifacts/${appId}/public/data/players/${playerState.id}`);
+            await updateDoc(playerDocRef, {
+                stamina: Math.max(0, playerState.stamina - 2),
+                hydration: Math.min(100, playerState.hydration + 50)
+            });
+            sendEventMessage(`${playerState.name}は水を飲んだ。水分が回復！`);
+        });
+        
+        craftMenuButton.addEventListener('click', () => {
+            craftMenu.classList.toggle('hidden');
+        });
+
+        closeCraftMenuButton.addEventListener('click', () => {
+            craftMenu.classList.add('hidden');
+        });
+
+        document.querySelectorAll('.craft-item').forEach(button => {
+            button.addEventListener('click', async (e) => {
+                const item = e.currentTarget.dataset.item;
+                const playerDocRef = doc(db, `/artifacts/${appId}/public/data/players/${playerState.id}`);
+                
+                if (item === 'stone_axe' && playerState.materials >= 5) {
+                    await updateDoc(playerDocRef, { materials: playerState.materials - 5, tool: 'stone_axe' });
+                    sendEventMessage(`${playerState.name}は石の斧をクラフトした！`);
+                } else if (item === 'spear' && playerState.materials >= 10) {
+                    await updateDoc(playerDocRef, { materials: playerState.materials - 10, weapon: 'spear' });
+                    sendEventMessage(`${playerState.name}は槍をクラフトした！`);
+                } else if (item === 'medicine' && playerState.materials >= 3) {
+                    const newItems = [...playerState.items, 'medicine'];
+                    await updateDoc(playerDocRef, { materials: playerState.materials - 3, items: newItems });
+                    sendEventMessage(`${playerState.name}は薬をクラフトした！`);
+                } else {
+                    logMessage("資材が足りない...");
+                }
+                craftMenu.classList.add('hidden');
+            });
+        });
+
+        attackButton.addEventListener('click', async () => {
+            if (!gameActive || !playerState.isAlive || playerState.stamina < 10) {
+                logMessage("スタミナが足りない...");
+                return;
+            }
+            
+            const opponent = findNearestOpponent(playerState);
+            if (!opponent || getDistanceToCenter(playerState.x, playerState.y) > getDistanceToCenter(opponent.x, opponent.y) + 1) {
+                 logMessage("攻撃する相手が近くにいない...");
+                 return;
+            }
+            
+            const playerDocRef = doc(db, `/artifacts/${appId}/public/data/players/${playerState.id}`);
+            await updateDoc(playerDocRef, { stamina: Math.max(0, playerState.stamina - 10) });
+            
+            const opponentDocRef = doc(db, `/artifacts/${appId}/public/data/players/${opponent.id}`);
+            const baseDamage = 10;
+            const weaponDamage = playerState.weapon === 'spear' ? 10 : 0;
+            const damage = baseDamage + weaponDamage + Math.floor(Math.random() * 5);
+            
+            const newHp = Math.max(0, opponent.hp - damage);
+            await updateDoc(opponentDocRef, { hp: newHp });
+            sendEventMessage(`${playerState.name}が${opponent.name}に${damage}のダメージを与えた！`);
+            
+            if (newHp <= 0) {
+                await updateDoc(opponentDocRef, { hp: 0, isAlive: false });
+                await updateDoc(playerDocRef, { materials: playerState.materials + opponent.materials });
+                sendEventMessage(`${playerState.name}が${opponent.name}を倒した！資材を奪った！`);
+            }
+        });
+    </script>
+</body>
+</html>
